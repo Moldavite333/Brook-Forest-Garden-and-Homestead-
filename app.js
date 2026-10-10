@@ -58,7 +58,7 @@ function varietyCard(v){
 }
 function varietiesPage(){
  return heading("PLANT LIBRARY","Will It Grow Here?","Search a variety, check its source information, then compare it to a specific garden zone.",a("+ Add variety","add-variety","",""))+
- '<div class="field search"><label for="variety-search">Search variety or species</label><input id="variety-search" type="search" placeholder="German Pink, blue flax, columbine…" value="'+esc(plantSearch)+'"></div><div id="variety-results" class="results">'+varietyCards(plantSearch)+'</div><div class="section"><h3>What this does—and doesn't—know</h3></div><div class="notice">Published days-to-maturity, warm-night requirements and soil temperatures are not universal. Tomato screening uses general tomato thresholds until you verify the exact cultivar’s catalog data. No made-up success percentages.</div>';
+ '<div class="field search"><label for="variety-search">Search variety or species</label><input id="variety-search" type="search" placeholder="German Pink, blue flax, columbine…" value="'+esc(plantSearch)+'"></div><div id="variety-results" class="results">'+varietyCards(plantSearch)+'</div><div class="section"><h3>What this does and does not know</h3></div><div class="notice">Published days-to-maturity, warm-night requirements and soil temperatures are not universal. Tomato screening uses general tomato thresholds until you verify the exact cultivar’s catalog data. No made-up success percentages.</div>';
 }
 function varietyCards(q){const list=state.varieties.filter(v=>(v.name+" "+v.species+" "+v.kind).toLowerCase().includes(String(q).toLowerCase()));return list.length?list.map(varietyCard).join(""):blank("No variety found","Add this exact cultivar and paste its seed-catalog details.");}
 function varietyForm(){
