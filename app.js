@@ -54,7 +54,9 @@ function zoneForm(){
  area("Notes / exposures / existing vegetation","notes",z.notes||"")+'</div><div class="buttons" style="margin-top:18px"><button class="btn">Save growing zone</button>'+a("Cancel","go","zones")+(editing?a("Delete zone","delete-zone",z.id,"ghost"):"")+'</div></form>';
 }
 function varietyCard(v){
- return '<article class="card"><div class="row row-top"><div><div class="item-title">'+esc(v.name)+'</div><div class="item-meta"><i>'+esc(v.species||"Species unknown")+'</i> · '+esc(v.kind)+'</div></div>'+chip(v.provenance==="starter"?"Starter reference":"Your record")+'</div><p class="tiny muted">'+esc(v.notes||"No growing notes yet.")+'</p><div>'+chip(v.maturityDays? v.maturityDays+" days":"Maturity unknown")+chip(v.sunMin!==null&&v.sunMin!==""?v.sunMin+"+ sun hrs":"Sun unknown")+'</div><div class="buttons" style="margin-top:12px">'+a("Will It Grow Here?","match",v.id,"")+a("Edit","edit-variety",v.id)+'</div></article>';
+ const attempts=state.trials.filter(t=>t.varietyId===v.id),successes=attempts.filter(t=>t.status==="thrived").length;
+ const recordNote=attempts.length?chip(attempts.length+" recorded trials")+chip(successes+" thrived","good"):"";
+ return '<article class="card"><div class="row row-top"><div><div class="item-title">'+esc(v.name)+'</div><div class="item-meta"><i>'+esc(v.species||"Species unknown")+'</i> · '+esc(v.kind)+'</div></div>'+chip(v.provenance==="starter"?"Starter reference":"Your record")+'</div><p class="tiny muted">'+esc(v.notes||"No growing notes yet.")+'</p><div>'+chip(v.maturityDays? v.maturityDays+" days":"Maturity unknown")+chip(v.sunMin!==null&&v.sunMin!==""?v.sunMin+"+ sun hrs":"Sun unknown")+'</div>'+recordNote+'<div class="buttons" style="margin-top:12px">'+a("Will It Grow Here?","match",v.id,"")+a("Edit","edit-variety",v.id)+'</div></article>';
 }
 function varietiesPage(){
  return heading("PLANT LIBRARY","Will It Grow Here?","Search a variety, check its source information, then compare it to a specific garden zone.",a("+ Add variety","add-variety","",""))+
@@ -102,7 +104,7 @@ function trialForm(){
  field("Season year","year",t.year||new Date().getFullYear(),"number",'min="1900" max="2100" required')+
  field("Date sown","sowDate",t.sowDate||"","date")+field("Transplant date","transplantDate",t.transplantDate||"","date")+
  pick("Overall status","status",[["active","Active / observing"],["thrived","Thrived"],["struggled","Struggled"],["failed","Failed"],["inconclusive","Inconclusive"]],t.status||"active")+
- area("Goal, treatment, problems or prior observations","notes",t.notes||"","Record observations even when exact dates are unknown.")+
+ area("Goal, treatment, problems or prior observations","notes",t.notes||"","Record observations even when exact dates are unknown.")+area("Next-season experiment / what to change","nextExperiment",t.nextExperiment||"")+
  '</div><div class="buttons" style="margin-top:16px"><button class="btn">Save trial</button>'+a("Cancel","go","trials")+'</div></form>';
 }
 function trialDetail(){
@@ -114,8 +116,20 @@ function trialDetail(){
  pick("What happened?","kind",[["observation","Growth observation"],["germination","Germination"],["flowering","First flowers"],["fruit-set","Fruit set"],["harvest","Harvest"],["frost","Cold / frost damage"],["drought","Drought stress"],["pests","Pests / browsing"],["intervention","Treatment / experiment"],["failure","Failure / death"]],"observation")+
  area("What happened? What would you change?","notes","")+
  '</div><button class="btn" style="margin-top:12px">Save observation</button></form></section></div>'+
- section("Growing timeline",t.events?.length?'<ol class="time-list">'+t.events.slice().sort((a,b)=>String(b.date).localeCompare(String(a.date))).map(ev=>'<li><div class="row"><strong>'+esc(ev.kind.replace("-"," "))+'</strong><span class="item-meta">'+esc(ev.date)+'</span></div><div>'+esc(ev.notes||"No notes.")+'</div></li>').join("")+'</ol>':blank("Nothing logged yet","Log flower dates, fruit set, frost injury and experiments so we can investigate future failures."))+
+ diagnosisPanel(t,v,z)+section("Growing timeline",t.events?.length?'<ol class="time-list">'+t.events.slice().sort((a,b)=>String(b.date).localeCompare(String(a.date))).map(ev=>'<li><div class="row"><strong>'+esc(ev.kind.replace("-"," "))+'</strong><span class="item-meta">'+esc(ev.date)+'</span></div><div>'+esc(ev.notes||"No notes.")+'</div></li>').join("")+'</ol>':blank("Nothing logged yet","Log flower dates, fruit set, frost injury and experiments so we can investigate future failures."))+
  '<div class="buttons">'+a("Back to trials","go","trials")+a("Delete trial","delete-trial",t.id,"ghost")+'</div>';
+}
+
+function diagnosisPanel(t,v,z){
+ const prior=state.trials.filter(x=>x.varietyId===t.varietyId).sort((a,b)=>a.year-b.year);
+ const flower=(t.events||[]).some(x=>x.kind==="flowering"),fruit=(t.events||[]).some(x=>x.kind==="fruit-set");
+ const issue=(t.status==="failed"||t.status==="struggled");
+ const summaries=prior.map(x=>'<li><b>'+esc(x.year)+'</b> · '+esc(state.zones.find(z=>z.id===x.zoneId)?.name||"Unknown location")+' · '+esc(x.status)+'</li>').join("");
+ return '<div class="grid two" style="margin-top:16px"><section class="card"><div class="pillhead">Why did it fail?</div><h3>Evidence before assumptions</h3>'+
+ (issue?'<p>We have a struggling or failed season on record. Investigate <b>actual flowering-period nights</b>, moisture, light, seedbed conditions, competition, pests and pollination before blaming elevation.</p>':'<p>When a variety struggles, review observations and local temperatures together. A surviving plant with no flowers is a different problem than one that flowers but does not set fruit.</p>')+
+ (flower&&!fruit?'<p class="notice">Flowers were logged but fruit set was not. That might mean fruit never formed <b>or just was not recorded</b>; verify before diagnosing.</p>':"")+
+ '<p><b>Next-season experiment:</b> '+esc(t.nextExperiment||"Not written yet. Add one by editing this trial.")+'</p>'+a("Edit experiment","edit-trial",t.id,"secondary")+'</section>'+
+ '<section class="card"><div class="pillhead">Long-term variety record</div><h3>'+esc(v?.name||"Variety")+'</h3><p>'+prior.length+' trial(s) logged across seasons. Outcomes are observations, not scientific proof.</p>'+(summaries?'<ul>'+summaries+'</ul>':"")+'<p class="tiny muted">A repeated result across different weather and management conditions is more informative than a single bad season.</p></section></div>';
 }
 function weatherCards(){
  const f=state.forecast; if(!f)return '<p class="muted">No modeled forecast loaded. Enter approximate coordinates in Data, then press Refresh forecast.</p>';
@@ -181,7 +195,7 @@ async function onForm(form){
  if(typ==="zone"){if(!F("name"))return notice("Give this zone a name.");let z=state.zones.find(o=>o.id===zoneEdit),record={id:z?.id||E.uid(),name:F("name"),sunHours:numOrNull(F("sunHours")),light:F("light"),moisture:F("moisture"),soil:F("soil"),status:F("status"),notes:F("notes")};if(z)Object.assign(z,record);else state.zones.push(record);page="zones";zoneEdit=null;return commit("Growing zone saved")}
  if(typ==="variety"){if(!F("name"))return notice("The variety needs a name.");let v=state.varieties.find(o=>o.id===varietyEdit),record={id:v?.id||E.uid(),name:F("name"),species:F("species"),kind:F("kind"),habit:F("habit"),maturityDays:numOrNull(F("maturityDays")),maturityBasis:F("maturityBasis"),sunMin:numOrNull(F("sunMin")),nightMin:numOrNull(F("nightMin")),soilMin:numOrNull(F("soilMin")),moisture:F("moisture"),source:F("source"),notes:F("notes"),provenance:"user"};if(v)Object.assign(v,record);else state.varieties.push(record);page="varieties";varietyEdit=null;return commit("Variety saved")}
  if(typ==="match"){matchingZone=F("zoneId");state.matchDate=F("transplant");render();return}
- if(typ==="trial"){let old=state.trials.find(x=>x.id===trialEdit),record={id:old?.id||E.uid(),varietyId:F("varietyId"),zoneId:F("zoneId"),year:Number(F("year")),sowDate:F("sowDate"),transplantDate:F("transplantDate"),status:F("status"),notes:F("notes"),events:old?.events||[]};if(!Number.isInteger(record.year)||record.year<1900||record.year>2100)return notice("Check the season year.");if(old)Object.assign(old,record);else state.trials.push(record);page="trials";trialEdit=null;return commit("Trial saved")}
+ if(typ==="trial"){let old=state.trials.find(x=>x.id===trialEdit),record={id:old?.id||E.uid(),varietyId:F("varietyId"),zoneId:F("zoneId"),year:Number(F("year")),sowDate:F("sowDate"),transplantDate:F("transplantDate"),status:F("status"),notes:F("notes"),nextExperiment:F("nextExperiment"),events:old?.events||[]};if(!Number.isInteger(record.year)||record.year<1900||record.year>2100)return notice("Check the season year.");if(old)Object.assign(old,record);else state.trials.push(record);page="trials";trialEdit=null;return commit("Trial saved")}
  if(typ==="event"){let t=state.trials.find(x=>x.id===chosenTrial);if(!t)return; t.events=t.events||[];t.events.push({id:E.uid(),date:F("date"),kind:F("kind"),notes:F("notes")});return commit("Observation added to the trial")}
  if(typ==="profile"){const p=state.profile;for(let key of ["name","latitude","longitude","lastFrost","firstFrost","frostNote"])p[key]=F(key);p.elevationFt=numOrNull(F("elevationFt"));if(p.latitude!==""&&(Number(p.latitude)>90||Number(p.latitude)<-90))return notice("Latitude is outside range.");if(p.longitude!==""&&(Number(p.longitude)>180||Number(p.longitude)<-180))return notice("Longitude is outside range.");return commit("Property profile saved")}
  if(typ==="weather"){
