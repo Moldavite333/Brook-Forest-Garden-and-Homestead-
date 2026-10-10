@@ -81,9 +81,9 @@ function varietyForm(){
 function matchPage(){
  const v=state.varieties.find(x=>x.id===matching),zone=state.zones.find(x=>x.id===matchingZone)||state.zones[0];
  if(!v)return heading("VARIETY MATCH","Choose a variety","Open the plant library.");
- const assessment=E.assessment(v,zone,state,document.getElementById("match-date")?.value||"");
+ const assessment=E.assessment(v,zone,state,state.matchDate||"");
  return heading("PROPERTY COMPATIBILITY","Will "+esc(v.name)+" grow here?","A screening assessment for one cultivar in one specific location.")+
- '<div class="split"><div class="card"><form data-form="match" class="form-grid">'+pick("Garden location","zoneId",state.zones.map(z=>[z.id,z.name]),zone.id)+field("Proposed transplant / planting date","transplant",document.getElementById("match-date")?.value||"","date")+'<div class="field full"><button class="btn" type="submit">Analyze this location</button></div></form>'+
+ '<div class="split"><div class="card"><form data-form="match" class="form-grid">'+pick("Garden location","zoneId",state.zones.map(z=>[z.id,z.name]),zone.id)+field("Proposed transplant / planting date","transplant",state.matchDate||"","date")+'<div class="field full"><button class="btn" type="submit">Analyze this location</button></div></form>'+
  '<div class="score '+assessment.className+'"><div class="pillhead">Assessment · confidence '+assessment.confidence+'</div><b>'+esc(assessment.rating)+'</b><p class="tiny">'+esc(assessment.explanation)+'</p></div>'+
  '<h3>What the evidence says</h3>'+(assessment.checks.length?assessment.checks.map(c=>'<div class="reason"><strong>'+chip(c.level==="good"?"Favorable":c.level==="risk"?"Barrier":"Caution",c.level==="good"?"good":c.level==="risk"?"danger":"warn")+esc(c.name)+'</strong><div>'+esc(c.detail)+'</div><small>'+esc(c.action)+'</small></div>').join(""):blank("Not enough measured information","The app refuses to invent a verdict."))+
  '<div class="section"><h3>What to measure next</h3></div>'+(assessment.missing.length?'<ul>'+assessment.missing.map(s=>'<li>'+esc(s)+'</li>').join("")+'</ul>':'<p class="muted">Continue tracking outcomes to validate this preliminary recommendation.</p>')+'</div>'+
@@ -121,10 +121,21 @@ function weatherCards(){
  const f=state.forecast; if(!f)return '<p class="muted">No modeled forecast loaded. Enter approximate coordinates in Data, then press Refresh forecast.</p>';
  const days=f.daily?.time||[];return '<p class="tiny muted">Regional model · Open-Meteo · '+esc(dateText(f.fetchedAt))+' · not a property weather-station reading</p><div class="forecast-grid">'+days.slice(0,7).map((d,i)=>'<div class="forecast-day"><strong>'+esc(d.slice(5))+'</strong><b class="'+(f.daily.temperature_2m_min[i]<=32?"cold":"")+'">'+Math.round(f.daily.temperature_2m_min[i])+'°</b><span>'+Math.round(f.daily.temperature_2m_max[i])+'° high</span></div>').join("")+'</div>';
 }
+
+function historicCard(){
+ const h=state.history;
+ if(!h||!Array.isArray(h.daily?.time)){
+ return '<div class="divider"></div><div class="row"><div><strong>Historical regional reference</strong><p class="tiny muted">Optional 3 complete years of modeled daily lows. Never treated as measured backyard temperatures.</p></div>'+a("Load history","history","","small")+'</div>';
+ }
+ const dates=h.daily.time,lows=h.daily.temperature_2m_min||[];
+ const summer=dates.map((d,i)=>({d,temp:Number(lows[i])})).filter(o=>o.d.slice(5)>="06-01"&&o.d.slice(5)<="09-01"&&Number.isFinite(o.temp));
+ const avg=summer.length?summer.reduce((t,o)=>t+o.temp,0)/summer.length:null;
+ return '<div class="divider"></div><div class="row row-top"><div><strong>Historical regional reference</strong><p class="tiny muted">Modeled daily minimum temperature (not observed nighttime mean). '+esc(h.startDate)+' to '+esc(h.endDate)+'.</p>'+(avg!==null?'<p><b>'+avg.toFixed(1)+'°F</b> average summer daily minimum · '+summer.length+' days</p>':'<p>Regional history loaded.</p>')+'</div>'+a("Refresh","history","","small")+'</div>';
+}
 function weatherPage(){
  const obs=state.observations.slice().sort((a,b)=>String(b.timestamp).localeCompare(String(a.timestamp)));let suspect=obs.filter(o=>o.flag==="suspect");
  return heading("YOUR PROPERTY, NOT YOUR COUNTY","Weather evidence","Raw readings are kept. Suspicious values are flagged, and manual verification never erases the originals.")+
- '<div class="grid two"><section class="card"><div class="row"><h3>Regional forecast</h3>'+a("Refresh forecast","forecast","","small")+'</div>'+weatherCards()+'<p class="tiny muted">The forecast is not a measurement and should never be presented as a precise prediction for a shaded or sheltered bed.</p></section>'+
+ '<div class="grid two"><section class="card"><div class="row"><h3>Regional forecast</h3>'+a("Refresh forecast","forecast","","small")+'</div>'+weatherCards()+historicCard()+'<p class="tiny muted">The forecast is not a measurement and should never be presented as a precise prediction for a shaded or sheltered bed.</p></section>'+
  '<section class="card"><h3>Record local weather</h3><form data-form="weather"><div class="form-grid">'+field("Date","date",datelocal(),"date","required")+field("Time","time","08:00","time","required")+
  pick("Measurement","metric",[["night_low_f","Measured overnight low (°F)"],["air_temp_f","Air temp snapshot (°F)"],["soil_temp_f","Soil temp (°F)"],["rain_inches","Rain accumulation (in)"],["snow_depth_inches","Snow depth (in)"]],"night_low_f")+
  pick("Location / sensor","zoneId",[["","Main property / station"],...state.zones.map(z=>[z.id,z.name])],"")+
@@ -207,6 +218,7 @@ document.addEventListener("click",async e=>{
  if(act==="delete-weather"){if(confirm("Delete raw weather reading? Use verification rather than deleting suspicious sensor data.")){state.observations=state.observations.filter(x=>x.id!==id);return commit("Weather reading deleted")}return}
  if(act==="verify"){chosenWeather=id;render();return setTimeout(()=>document.querySelector('[data-form="verify"]')?.scrollIntoView({behavior:"smooth"}),50)}
  if(act==="cancel-verify"){chosenWeather=null;return render()}
+ if(act==="history"){if(busy)return;busy=true;el.disabled=true;try{await fetchHistory()}finally{busy=false;render()}return}
  if(act==="forecast"){if(busy)return;busy=true;el.disabled=true;try{await fetchForecast()}finally{busy=false;render()}return}
  if(act==="export"){exportBackup();return}
  }catch(err){console.error(err);notice("Action failed: "+err.message)}
@@ -218,6 +230,18 @@ async function fetchForecast(){
  const response=await fetch(url);if(!response.ok)throw Error("Forecast service HTTP "+response.status);
  const json=await response.json();if(!json.daily?.time?.length)throw Error("No daily forecast returned.");
  state.forecast={daily:json.daily,fetchedAt:new Date().toISOString(),source:"Open-Meteo regional modeled forecast"};await save();notice("Modeled forecast updated (not station observations)")}catch(err){notice("Forecast unavailable: "+err.message)}
+}
+
+async function fetchHistory(){
+ const lat=Number(state.profile.latitude),lon=Number(state.profile.longitude);
+ if(state.profile.latitude===""||state.profile.longitude===""||!Number.isFinite(lat)||!Number.isFinite(lon))return notice("Add privately stored latitude and longitude under Data first.");
+ const y=new Date().getFullYear(),start=(y-3)+"-01-01",end=(y-1)+"-12-31";
+ try{
+ const url="https://archive-api.open-meteo.com/v1/archive?latitude="+encodeURIComponent(lat)+"&longitude="+encodeURIComponent(lon)+"&start_date="+start+"&end_date="+end+"&daily=temperature_2m_min,temperature_2m_max&temperature_unit=fahrenheit&timezone=America%2FDenver";
+ const response=await fetch(url);if(!response.ok)throw Error("History service HTTP "+response.status);
+ const json=await response.json();if(!json.daily?.time?.length)throw Error("No historical daily minima returned.");
+ state.history={daily:json.daily,fetchedAt:new Date().toISOString(),startDate:start,endDate:end,source:"Open-Meteo gridded reanalysis; not site measurements"};await save();notice("Regional modeled historical reference saved (not property measurements)");
+ }catch(err){notice("History unavailable: "+err.message)}
 }
 function exportBackup(){
  const blob=new Blob([JSON.stringify({app:"high-altitude-garden-planner",schemaVersion:1,exportedAt:new Date().toISOString(),data:state},null,2)],{type:"application/json"}),u=URL.createObjectURL(blob),a=document.createElement("a");a.href=u;a.download="high-altitude-garden-backup-"+datelocal()+".json";document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(u),3000);notice("Download the backup and keep it somewhere safe.")
