@@ -37,7 +37,7 @@ function assessment(variety,zone,state,transplant){
   if(suns+1<required)add("Direct sunlight","risk",suns+" measured hours vs "+required+" recommended","Try a sunnier location or measure midsummer light again.");
   else if(suns<required)add("Direct sunlight","caution",suns+" hours vs "+required+" recommended","Test a sunnier growing pocket.");
   else add("Direct sunlight","good",suns+" hours vs "+required+" recommended","Keep monitoring changes in seasonal shade.");
- }else if(required!==null){missing.push("Measure direct sun hours for this zone. Broad light labels are not reliable measurements.");}
+ }else if(required!==null){missing.push("Measure direct sun hours for this zone. Broad light labels are not reliable measurements.");if(zone.light==="part"&&required>=6)add("Reported light exposure","caution","This zone is described as partially shaded; "+required+" direct sun hours are recommended.","Measure sun exposure at midsummer before assuming this site receives enough light.");}
  if(zone.status==="stabilize")add("Slope stability","risk","This zone is marked as an active erosion-management area.","Address concentrated drainage before disturbing or seeding the slope.");
  if(zone.status==="weeds")add("Established weeds","caution","Existing weed competition was reported.","Control and identify weeds before investing in seed.");
  if(zone.status==="planned")missing.push("This area is planned but not yet built or measured.");
@@ -73,6 +73,23 @@ function assessment(variety,zone,state,transplant){
    const latest=soil[0],val=getEffective(latest),level=val<n(variety.soilMin)?"caution":"good";
    add("Last soil temperature",level,val+"°F recorded "+String(latest.timestamp).slice(0,10)+"; target at least "+variety.soilMin+"°F.","Measure again on transplant day; this is a dated snapshot, not a future prediction.");
   } else missing.push("Add a current soil-temperature observation for this zone.");
+ }
+
+ // Regional reanalysis is a reference, NEVER an observation on the user's property.
+ const hist=state.history?.daily;
+ if(hist&&Array.isArray(hist.time)&&Array.isArray(hist.temperature_2m_min)){
+  const values=hist.time.map((day,i)=>({day,temp:n(hist.temperature_2m_min[i])})).filter(x=>x.temp!==null&&x.day.slice(5)>="06-01"&&x.day.slice(5)<="09-01");
+  if(values.length>=30&&n(variety.nightMin)!==null){
+   const below=values.filter(x=>x.temp<n(variety.nightMin)).length,ratio=below/values.length;
+   add("Regional modeled summer lows",ratio>=0.4?"caution":"good",below+" of "+values.length+" modeled summer daily minima below "+variety.nightMin+"°F. This is regional reference data, NOT readings from your bed.","Track actual air temperatures during flowering. Daily minima are not average nighttime temperatures.");
+  }
+ }
+ const forecast=state.forecast?.daily;
+ if(forecast&&dateOnly(transplant)&&Array.isArray(forecast.time)){
+  const i=forecast.time.indexOf(transplant);
+  if(i>=0&&n(forecast.temperature_2m_min[i])!==null&&n(forecast.temperature_2m_min[i])<=32){
+   add("Modeled transplant-date frost","risk","Regional forecast low "+forecast.temperature_2m_min[i]+"°F on proposed planting date. Local readings may differ.","Delay transplanting or provide reliable frost protection; monitor updated forecasts.");
+  }
  }
  if(variety.kind==="tomato"&&maturity===null)missing.push("Published cultivar-specific days to maturity are missing; do not substitute another tomato's number.");
  const bad=checks.filter(x=>x.level==="risk").length,caution=checks.filter(x=>x.level==="caution").length,positive=checks.filter(x=>x.level==="good").length;
