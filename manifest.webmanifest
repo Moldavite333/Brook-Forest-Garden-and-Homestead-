@@ -1,0 +1,19 @@
+{
+  "name": "High Altitude Garden Planner",
+  "short_name": "Altitude Garden",
+  "description": "Your property. Not your county. Track what grows, what fails, and why.",
+  "id": "./",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#f7f5ec",
+  "theme_color": "#123d33",
+  "icons": [
+    {
+      "src": "./icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    }
+  ]
+}
