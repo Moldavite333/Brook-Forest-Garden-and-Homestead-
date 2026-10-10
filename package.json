@@ -1,0 +1,9 @@
+{
+  "name": "high-altitude-garden-planner",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Private offline-first high-altitude garden planner",
+  "scripts": {
+    "test": "node --check engine.js && node --check app.js && node --check sw.js && node tests/engine.test.js"
+  }
+}
